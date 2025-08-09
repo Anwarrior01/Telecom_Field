@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:telecom_app/core/utils/app_theme.dart';
+import 'dart:convert';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,11 +15,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _nameController = TextEditingController();
   final _domainController = TextEditingController();
   bool _isEditing = false;
+  int _totalOperations = 0;
+  int _totalPdfs = 0;
+  String _memberSince = '';
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _loadStatistics();
   }
 
   @override
@@ -33,6 +38,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() {
       _nameController.text = prefs.getString('technician_name') ?? '';
       _domainController.text = prefs.getString('technician_domain') ?? '';
+    });
+  }
+
+  Future<void> _loadStatistics() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Load operations count
+    final operationsJson = prefs.getStringList('operations') ?? [];
+    
+    // Load registration date
+    final registrationDate = prefs.getString('registration_date');
+    String memberSinceText;
+    
+    if (registrationDate != null) {
+      final regDate = DateTime.parse(registrationDate);
+      final now = DateTime.now();
+      final difference = now.difference(regDate).inDays;
+      
+      if (difference == 0) {
+        memberSinceText = 'Aujourd\'hui';
+      } else if (difference == 1) {
+        memberSinceText = 'Hier';
+      } else if (difference < 30) {
+        memberSinceText = '$difference jours';
+      } else if (difference < 365) {
+        final months = (difference / 30).round();
+        memberSinceText = '$months mois';
+      } else {
+        final years = (difference / 365).round();
+        memberSinceText = '$years an${years > 1 ? 's' : ''}';
+      }
+    } else {
+      // Save current date as registration date if not exists
+      await prefs.setString('registration_date', DateTime.now().toIso8601String());
+      memberSinceText = 'Aujourd\'hui';
+    }
+    
+    setState(() {
+      _totalOperations = operationsJson.length;
+      _totalPdfs = operationsJson.length; // Each operation generates one PDF
+      _memberSince = memberSinceText;
     });
   }
 
@@ -120,6 +166,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           labelText: 'Nom complet',
                           prefixIcon: const Icon(Icons.person, color: AppTheme.accent),
                           suffixIcon: _isEditing ? null : const Icon(Icons.lock, color: AppTheme.textSecondary),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -136,6 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           labelText: 'Domaine de spécialité',
                           prefixIcon: const Icon(Icons.work, color: AppTheme.accent),
                           suffixIcon: _isEditing ? null : const Icon(Icons.lock, color: AppTheme.textSecondary),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -192,9 +240,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _buildStatItem('Opérations terminées', '0'),
-                    _buildStatItem('PDF générés', '0'),
-                    _buildStatItem('Membre depuis', 'Aujourd\'hui'),
+                    _buildStatItem('Opérations terminées', _totalOperations.toString()),
+                    _buildStatItem('PDF générés', _totalPdfs.toString()),
+                    _buildStatItem('Membre depuis', _memberSince),
                   ],
                 ),
               ),
@@ -218,12 +266,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               fontSize: 14,
             ),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppTheme.accent.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: AppTheme.accent,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

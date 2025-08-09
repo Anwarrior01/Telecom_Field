@@ -31,6 +31,7 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
   final List<OperationPhoto> _photos = [];
   final ImagePicker _picker = ImagePicker();
   final TextEditingController _descriptionController = TextEditingController();
+  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
   late AnimationController _listAnimationController;
   bool _isGeneratingPdf = false;
 
@@ -84,30 +85,32 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
           'Description de l\'image',
           style: TextStyle(color: AppTheme.textPrimary),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                image: DecorationImage(
-                  image: FileImage(imageFile),
-                  fit: BoxFit.cover,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  image: DecorationImage(
+                    image: FileImage(imageFile),
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _descriptionController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                hintText: 'Décrivez ce qui est visible sur l\'image...',
+              const SizedBox(height: 16),
+              TextField(
+                controller: _descriptionController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  hintText: 'Décrivez ce qui est visible sur l\'image...',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -127,20 +130,36 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
   }
 
   void _addPhoto(File imageFile, String description) {
+    final photo = OperationPhoto(
+      imageFile: imageFile,
+      description: description.isEmpty ? 'Aucune description' : description,
+      timestamp: DateTime.now(),
+    );
+    
     setState(() {
-      _photos.add(OperationPhoto(
-        imageFile: imageFile,
-        description: description.isEmpty ? 'Aucune description' : description,
-        timestamp: DateTime.now(),
-      ));
+      _photos.add(photo);
     });
-    _listAnimationController.forward();
+    
+    // Animate the addition
+    _listKey.currentState?.insertItem(_photos.length - 1);
   }
 
   void _removePhoto(int index) {
+    final removedPhoto = _photos[index];
     setState(() {
       _photos.removeAt(index);
     });
+    
+    // Animate the removal
+    _listKey.currentState?.removeItem(
+      index,
+      (context, animation) => SlideTransition(
+        position: animation.drive(
+          Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero),
+        ),
+        child: _buildPhotoCard(removedPhoto, index, animation: animation),
+      ),
+    );
   }
 
   Future<void> _generatePDF() async {
@@ -190,7 +209,10 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de la génération PDF: $e')),
+          SnackBar(
+            content: Text('Erreur lors de la génération PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -237,7 +259,7 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
             ),
             const SizedBox(height: 12),
             Text(
-              'Le fichier a été sauvegardé dans vos téléchargements',
+              'Fichier sauvegardé:\n${pdfPath.split('/').last}',
               style: const TextStyle(
                 fontSize: 14,
                 color: AppTheme.textSecondary,
@@ -323,9 +345,11 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
             child: _photos.isEmpty
                 ? _buildEmptyState()
                 : AnimatedList(
+                    key: _listKey,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     initialItemCount: _photos.length,
                     itemBuilder: (context, index, animation) {
+                      if (index >= _photos.length) return Container();
                       return SlideTransition(
                         position: animation.drive(
                           Tween<Offset>(
@@ -333,7 +357,7 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
                             end: Offset.zero,
                           ),
                         ),
-                        child: _buildPhotoCard(index),
+                        child: _buildPhotoCard(_photos[index], index, animation: animation),
                       );
                     },
                   ),
@@ -428,9 +452,8 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
     );
   }
 
-  Widget _buildPhotoCard(int index) {
-    final photo = _photos[index];
-    return Card(
+  Widget _buildPhotoCard(OperationPhoto photo, int index, {Animation<double>? animation}) {
+    Widget card = Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -481,6 +504,10 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
         ),
       ),
     );
+
+    return animation != null
+        ? FadeTransition(opacity: animation, child: card)
+        : card;
   }
 
   String _formatTime(DateTime time) {

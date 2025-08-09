@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:telecom_app/models/client_info.dart';
 import 'package:telecom_app/features/pages/photo/photo_capture_screen.dart';
 import 'package:telecom_app/core/utils/app_theme.dart';
+
 class ClientInfoScreen extends StatefulWidget {
   const ClientInfoScreen({super.key});
 
@@ -261,15 +262,28 @@ class _ClientInfoScreenState extends State<ClientInfoScreen>
     TextInputType? keyboardType,
     String? Function(String?)? validator,
   }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      validator: validator,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: AppTheme.accent),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        validator: validator,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: AppTheme.accent),
+          contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppTheme.accent, width: 2),
+          ),
+          filled: true,
+          fillColor: AppTheme.secondaryDark,
+        ),
       ),
     );
   }
 }
- 

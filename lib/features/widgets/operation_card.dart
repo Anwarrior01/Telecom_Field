@@ -5,11 +5,13 @@ import 'package:telecom_app/core/utils/app_theme.dart';
 class OperationCard extends StatelessWidget {
   final Operation operation;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   const OperationCard({
     super.key,
     required this.operation,
     required this.onTap,
+    this.onDelete,
   });
 
   @override
@@ -95,17 +97,29 @@ class OperationCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (onDelete != null) ...[
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                      onPressed: onDelete,
+                    ),
+                  ],
                 ],
               ),
               
               const SizedBox(height: 12),
               
-              Row(
-                children: [
-                  _buildInfoChip(Icons.phone, operation.clientInfo.phoneNumber),
-                  const SizedBox(width: 8),
-                  _buildInfoChip(Icons.work, operation.clientInfo.workOrder),
-                ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildInfoChip(Icons.phone, operation.clientInfo.phoneNumber),
+                    const SizedBox(width: 8),
+                    _buildInfoChip(Icons.work, operation.clientInfo.workOrder),
+                    const SizedBox(width: 8),
+                    _buildInfoChip(Icons.access_time, _formatTime(operation.createdAt)),
+                  ],
+                ),
               ),
             ],
           ),
@@ -140,5 +154,9 @@ class OperationCard extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+
+  String _formatTime(DateTime date) {
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }

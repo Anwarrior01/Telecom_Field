@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:telecom_app/models/operation.dart';
 import 'package:telecom_app/core/utils/app_theme.dart';
@@ -33,6 +34,53 @@ class _HistoryScreenState extends State<HistoryScreen> {
       _operations.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       _isLoading = false;
     });
+  }
+
+  void _viewOperationDetails(Operation operation) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => OperationDetailsScreen(operation: operation),
+      ),
+    );
+  }
+
+  Future<void> _deleteOperation(Operation operation) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.secondaryDark,
+        title: const Text(
+          'Supprimer l\'opération',
+          style: TextStyle(color: AppTheme.textPrimary),
+        ),
+        content: const Text(
+          'Êtes-vous sûr de vouloir supprimer cette opération?',
+          style: TextStyle(color: AppTheme.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final prefs = await SharedPreferences.getInstance();
+      final operationsJson = prefs.getStringList('operations') ?? [];
+      operationsJson.removeWhere((json) {
+        final op = Operation.fromJson(jsonDecode(json));
+        return op.id == operation.id;
+      });
+      await prefs.setStringList('operations', operationsJson);
+      _loadOperations();
+    }
   }
 
   @override
@@ -70,7 +118,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   itemBuilder: (context, index) {
                     return OperationCard(
                       operation: _operations[index],
-                      onTap: () => _viewOperation(_operations[index]),
+                      onTap: () => _viewOperationDetails(_operations[index]),
+                      onDelete: () => _deleteOperation(_operations[index]),
                     );
                   },
                 ),
@@ -117,8 +166,210 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
     );
   }
+}
 
-  void _viewOperation(Operation operation) {
-    // TODO: Navigate to operation details
+class OperationDetailsScreen extends StatelessWidget {
+  final Operation operation;
+
+  const OperationDetailsScreen({super.key, required this.operation});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Détails de l\'opération'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () {
+              // TODO: Implement sharing
+            },
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Client Info Card
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'INFORMATIONS CLIENT',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.accent,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildInfoRow('Nom:', operation.clientInfo.contactName),
+                    _buildInfoRow('SIP:', operation.clientInfo.sip),
+                    _buildInfoRow('Work Order:', operation.clientInfo.workOrder),
+                    _buildInfoRow('Téléphone:', operation.clientInfo.phoneNumber),
+                    _buildInfoRow('ID:', operation.clientInfo.id),
+                  ],
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Photos Section
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PHOTOS (${operation.photos.length})',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.accent,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...operation.photos.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final photo = entry.value;
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.secondaryDark.withOpacity(0.5),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(8),
+                                    image: DecorationImage(
+                                      image: FileImage(photo.imageFile),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Photo ${index + 1}',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppTheme.textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _formatDateTime(photo.timestamp),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              photo.description,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                ),
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Technician Info
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'TECHNICIEN',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.accent,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildInfoRow('Nom:', operation.technicianName),
+                    _buildInfoRow('Domaine:', operation.technicianDomain),
+                    _buildInfoRow('Date:', _formatDate(operation.createdAt)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+
+  String _formatDateTime(DateTime date) {
+    return '${_formatDate(date)} à ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
