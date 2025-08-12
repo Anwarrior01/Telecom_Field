@@ -14,7 +14,21 @@ class PDFService {
       
       final pdf = pw.Document();
 
-      // Add page
+      // Load images as bytes for PDF
+      final List<Uint8List> imageBytes = [];
+      for (var photo in operation.photos) {
+        try {
+          if (await photo.imageFile.exists()) {
+            final bytes = await photo.imageFile.readAsBytes();
+            imageBytes.add(bytes);
+          }
+        } catch (e) {
+          print('Error loading image: $e');
+          // Continue with other images
+        }
+      }
+
+      // Add pages with proper error handling
       pdf.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
@@ -23,13 +37,13 @@ class PDFService {
             return [
               _buildHeader(operation),
               pw.SizedBox(height: 20),
-              _buildTechnicianInfo(operation),
+              _buildIntervenantsInfo(operation),
               pw.SizedBox(height: 20),
               _buildClientInfo(operation),
               pw.SizedBox(height: 20),
               _buildEquipmentSection(),
               pw.SizedBox(height: 20),
-              _buildPhotosSection(operation),
+              _buildPhotosSection(operation, imageBytes),
               pw.SizedBox(height: 20),
               _buildFooter(operation),
             ];
@@ -37,16 +51,26 @@ class PDFService {
         ),
       );
 
-      // Get directory and save PDF
+      // Get directory and save PDF with better error handling
       final directory = await _getDownloadDirectory();
-      final fileName = 'Rapport_${operation.clientInfo.sip}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final fileName = 'Rapport_${operation.clientInfo.sip}_${_formatFileDate(DateTime.now())}.pdf';
       final file = File('${directory.path}/$fileName');
+      
+      // Ensure directory exists
+      await directory.create(recursive: true);
       
       final pdfBytes = await pdf.save();
       await file.writeAsBytes(pdfBytes);
 
-      print('PDF saved to: ${file.path}');
-      return file.path;
+      // Verify file was created
+      if (await file.exists()) {
+        final fileSize = await file.length();
+        print('PDF successfully created at: ${file.path}');
+        print('File size: $fileSize bytes');
+        return file.path;
+      } else {
+        throw Exception('PDF file was not created');
+      }
     } catch (e) {
       print('Error generating PDF: $e');
       throw Exception('Erreur lors de la génération du PDF: $e');
@@ -55,35 +79,55 @@ class PDFService {
 
   Future<void> _requestPermissions() async {
     if (Platform.isAndroid) {
-      await [
+      final permissions = <Permission>[
         Permission.camera,
         Permission.storage,
-        Permission.manageExternalStorage,
-      ].request();
+      ];
+      
+      // For Android 11+ (API 30+)
+      if (Platform.isAndroid) {
+        permissions.add(Permission.manageExternalStorage);
+      }
+      
+      await permissions.request();
     }
   }
 
   Future<Directory> _getDownloadDirectory() async {
     if (Platform.isAndroid) {
       // Try Downloads folder first
-      final downloadsDir = Directory('/storage/emulated/0/Download');
-      if (await downloadsDir.exists()) {
+      final downloadsDir = Directory('/storage/emulated/0/Download/TelecomField');
+      try {
+        if (!await downloadsDir.exists()) {
+          await downloadsDir.create(recursive: true);
+        }
         return downloadsDir;
+      } catch (e) {
+        print('Cannot access Downloads folder: $e');
       }
       
-      // Try external storage
-      final externalDir = await getExternalStorageDirectory();
-      if (externalDir != null) {
-        final telecomDir = Directory('${externalDir.path}/TelecomField');
-        if (!await telecomDir.exists()) {
-          await telecomDir.create(recursive: true);
+      // Try external storage as fallback
+      try {
+        final externalDir = await getExternalStorageDirectory();
+        if (externalDir != null) {
+          final telecomDir = Directory('${externalDir.path}/TelecomField');
+          if (!await telecomDir.exists()) {
+            await telecomDir.create(recursive: true);
+          }
+          return telecomDir;
         }
-        return telecomDir;
+      } catch (e) {
+        print('Cannot access external storage: $e');
       }
     }
     
     // Fallback to app documents directory
-    return await getApplicationDocumentsDirectory();
+    final appDir = await getApplicationDocumentsDirectory();
+    final telecomDir = Directory('${appDir.path}/TelecomField');
+    if (!await telecomDir.exists()) {
+      await telecomDir.create(recursive: true);
+    }
+    return telecomDir;
   }
 
   pw.Widget _buildHeader(Operation operation) {
@@ -91,36 +135,57 @@ class PDFService {
       width: double.infinity,
       padding: const pw.EdgeInsets.all(16),
       decoration: pw.BoxDecoration(
-        color: PdfColors.teal50,
+        color: PdfColors.blue50,
         borderRadius: pw.BorderRadius.circular(8),
-        border: pw.Border.all(color: PdfColors.teal200),
+        border: pw.Border.all(color: PdfColors.blue200),
       ),
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text(
-            'RAPPORT D\'INTERVENTION TÉLÉCOM',
-            style: pw.TextStyle(
-              fontSize: 20,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.teal800,
-            ),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'INFORMATIONS SUR L\'INTERVENTION',
+                style: pw.TextStyle(
+                  fontSize: 16,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.blue800,
+                ),
+              ),
+            ],
           ),
-          pw.SizedBox(height: 8),
-          pw.Text(
-            'Date: ${_formatDate(operation.createdAt)}',
-            style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
-          ),
-          pw.Text(
-            'ID Opération: ${operation.id}',
-            style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700),
+          pw.SizedBox(height: 12),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey300),
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+                children: [
+                  _buildTableCell('Date de la demande', isHeader: true),
+                  _buildTableCell('Priorité', isHeader: true),
+                  _buildTableCell('Type d\'intervention', isHeader: true),
+                  _buildTableCell('Date prévue de l\'intervention', isHeader: true),
+                  _buildTableCell('Prestataire', isHeader: true),
+                ],
+              ),
+              pw.TableRow(
+                children: [
+                  _buildTableCell(_formatDate(operation.createdAt)),
+                  _buildTableCell('Planifiée'),
+                  _buildTableCell('Intégration'),
+                  _buildTableCell(_formatDate(operation.createdAt)),
+                  _buildTableCell('ESCOT'),
+                ],
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  pw.Widget _buildTechnicianInfo(Operation operation) {
+  pw.Widget _buildIntervenantsInfo(Operation operation) {
     return pw.Container(
       width: double.infinity,
       padding: const pw.EdgeInsets.all(16),
@@ -149,7 +214,9 @@ class PDFService {
                   _buildTableCell('Prestataire', isHeader: true),
                   _buildTableCell('Nom de l\'intervenant', isHeader: true),
                   _buildTableCell('Téléphone', isHeader: true),
-                  _buildTableCell('Date d\'intervention', isHeader: true),
+                  _buildTableCell('Client/Mandataire', isHeader: true),
+                  _buildTableCell('Téléphone', isHeader: true),
+                  _buildTableCell('Date de l\'intervention', isHeader: true),
                 ],
               ),
               pw.TableRow(
@@ -157,6 +224,8 @@ class PDFService {
                   _buildTableCell('ESCOT'),
                   _buildTableCell(operation.technicianName),
                   _buildTableCell('0770 000204'),
+                  _buildTableCell(operation.clientInfo.contactName),
+                  _buildTableCell(operation.clientInfo.phoneNumber),
                   _buildTableCell(_formatDate(operation.createdAt)),
                 ],
               ),
@@ -307,7 +376,7 @@ class PDFService {
     );
   }
 
-  pw.Widget _buildPhotosSection(Operation operation) {
+  pw.Widget _buildPhotosSection(Operation operation, List<Uint8List> imageBytes) {
     return pw.Container(
       width: double.infinity,
       padding: const pw.EdgeInsets.all(16),
@@ -327,17 +396,58 @@ class PDFService {
             ),
           ),
           pw.SizedBox(height: 12),
+          pw.Text(
+            'Équipement installé:',
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 8),
           ...operation.photos.asMap().entries.map((entry) {
             final index = entry.key;
             final photo = entry.value;
-            return _buildPhotoItem(photo, index + 1);
+            final hasImageData = index < imageBytes.length;
+            return _buildPhotoItem(photo, index + 1, hasImageData ? imageBytes[index] : null);
           }).toList(),
+          
+          // Additional sections as in the original document
+          pw.SizedBox(height: 16),
+          pw.Text(
+            'Test signal (photomètre):',
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          _buildPlaceholderBox('Test signal effectué'),
+          
+          pw.SizedBox(height: 16),
+          pw.Text(
+            'Speed test (Test WIFI):',
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 8),
+          _buildPlaceholderBox('Test WIFI effectué'),
+          
+          pw.SizedBox(height: 16),
+          pw.Text(
+            'Étiquetage indoor',
+            style: pw.TextStyle(
+              fontSize: 12,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  pw.Widget _buildPhotoItem(operationPhoto, int photoNumber) {
+  pw.Widget _buildPhotoItem(operationPhoto, int photoNumber, Uint8List? imageBytes) {
     return pw.Container(
       margin: const pw.EdgeInsets.only(bottom: 16),
       child: pw.Column(
@@ -346,50 +456,69 @@ class PDFService {
           pw.Text(
             'Photo $photoNumber: ${operationPhoto.description}',
             style: pw.TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: pw.FontWeight.bold,
             ),
           ),
           pw.SizedBox(height: 8),
           pw.Text(
             'Prise le ${_formatDateTime(operationPhoto.timestamp)}',
-            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
           ),
           pw.SizedBox(height: 8),
-          // Image placeholder - en attendant l'implémentation complète des images
-          pw.Container(
-            width: double.infinity,
-            height: 200,
-            decoration: pw.BoxDecoration(
-              color: PdfColors.grey100,
-              border: pw.Border.all(color: PdfColors.grey300),
-              borderRadius: pw.BorderRadius.circular(4),
-            ),
-            child: pw.Center(
-              child: pw.Column(
-                mainAxisAlignment: pw.MainAxisAlignment.center,
-                children: [
-                  pw.Text(
-                    '[PHOTO ATTACHÉE]',
-                    style: pw.TextStyle(
-                      color: PdfColors.grey500,
-                      fontSize: 14,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                  pw.SizedBox(height: 4),
-                  pw.Text(
-                    operationPhoto.imageFile.path.split('/').last,
-                    style: const pw.TextStyle(
-                      color: PdfColors.grey400,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
+          
+          // Show actual image if available, otherwise show placeholder
+          imageBytes != null 
+            ? pw.Container(
+                width: double.infinity,
+                height: 200,
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey300),
+                  borderRadius: pw.BorderRadius.circular(4),
+                ),
+                child: pw.Image(
+                  pw.MemoryImage(imageBytes),
+                  fit: pw.BoxFit.cover,
+                ),
+              )
+            : _buildPlaceholderBox('Image: ${operationPhoto.imageFile.path.split('/').last}'),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPlaceholderBox(String text) {
+    return pw.Container(
+      width: double.infinity,
+      height: 120,
+      decoration: pw.BoxDecoration(
+        color: PdfColors.grey100,
+        border: pw.Border.all(color: PdfColors.grey300),
+        borderRadius: pw.BorderRadius.circular(4),
+      ),
+      child: pw.Center(
+        child: pw.Column(
+          mainAxisAlignment: pw.MainAxisAlignment.center,
+          children: [
+            pw.Text(
+              '[IMAGE]',
+              style: pw.TextStyle(
+                color: PdfColors.grey500,
+                fontSize: 14,
+                fontWeight: pw.FontWeight.bold,
               ),
             ),
-          ),
-        ],
+            pw.SizedBox(height: 4),
+            pw.Text(
+              text,
+              style: const pw.TextStyle(
+                color: PdfColors.grey400,
+                fontSize: 10,
+              ),
+              textAlign: pw.TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -415,11 +544,14 @@ class PDFService {
             ),
           ),
           pw.SizedBox(height: 12),
-          pw.Text('PV et Fiche d\'installation: ✓'),
+          pw.Text('PV et Fiche d\'installation:', style: const pw.TextStyle(fontSize: 11)),
           pw.SizedBox(height: 8),
-          pw.Text('Internet et voix sont OK'),
-          pw.Text('Emplacement du matériel choisi par le client: OK'),
-          pw.Text('Password d\'accès à distance: '),
+          
+          // Status information
+          pw.Text('Internet et voix sont OK', style: const pw.TextStyle(fontSize: 11)),
+          pw.Text('Emplacement du matériel choisi par le client.: OK', style: const pw.TextStyle(fontSize: 11)),
+          pw.Text('Password d\'accès à distance:', style: const pw.TextStyle(fontSize: 11)),
+          
           pw.SizedBox(height: 20),
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -428,20 +560,13 @@ class PDFService {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    'Réalisé par: ${operation.technicianName}',
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    'Date: ${_formatDate(operation.createdAt)}',
+                    style: const pw.TextStyle(fontSize: 11),
                   ),
-                  pw.Text('Technicien ${operation.technicianDomain}'),
-                  pw.SizedBox(height: 8),
-                  pw.Text('Date: ${_formatDate(operation.createdAt)}'),
-                ],
-              ),
-              pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.end,
-                children: [
-                  pw.Text('Approbateur Orange'),
                   pw.SizedBox(height: 30),
-                  pw.Text('Signature: ________________'),
+                  pw.Text('Approbateur Orange', style: const pw.TextStyle(fontSize: 11)),
+                  pw.SizedBox(height: 30),
+                  pw.Text('Signature: ________________', style: const pw.TextStyle(fontSize: 11)),
                 ],
               ),
             ],
@@ -453,11 +578,11 @@ class PDFService {
 
   pw.Widget _buildTableCell(String text, {bool isHeader = false}) {
     return pw.Container(
-      padding: const pw.EdgeInsets.all(8),
+      padding: const pw.EdgeInsets.all(6),
       child: pw.Text(
         text,
         style: pw.TextStyle(
-          fontSize: isHeader ? 11 : 10,
+          fontSize: isHeader ? 9 : 8,
           fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
           color: isHeader ? PdfColors.grey800 : PdfColors.black,
         ),
@@ -471,5 +596,9 @@ class PDFService {
 
   String _formatDateTime(DateTime date) {
     return '${_formatDate(date)} à ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  String _formatFileDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}_${date.month.toString().padLeft(2, '0')}_${date.year}_${date.hour.toString().padLeft(2, '0')}_${date.minute.toString().padLeft(2, '0')}';
   }
 }

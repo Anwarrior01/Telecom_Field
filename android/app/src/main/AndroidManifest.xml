@@ -1,13 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     
-    <!-- Add these permissions -->
+    <!-- Permissions pour la caméra et le stockage -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
+        android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
+        android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    
+    <!-- Internet pour le développement -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Camera feature -->
+    <!-- Fonctionnalités de la caméra -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
@@ -15,7 +20,8 @@
         android:label="TelecomField"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:requestLegacyExternalStorage="true">
+        android:requestLegacyExternalStorage="true"
+        android:preserveLegacyExternalStorage="true">
         
         <activity
             android:name=".MainActivity"
@@ -35,7 +41,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Add this provider for file operations -->
+        <!-- Provider pour les opérations de fichiers -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileProvider"
