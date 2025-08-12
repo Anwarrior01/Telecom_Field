@@ -130,21 +130,7 @@ class _CustomDrawerState extends State<CustomDrawer>
                           );
                         },
                       ),
-                      const Divider(color: AppTheme.textSecondary),
-                      _buildDrawerItem(
-                        icon: Icons.settings,
-                        title: 'Paramètres',
-                        onTap: () {
-                          Navigator.pop(context);
-                        },
-                      ),
-                      _buildDrawerItem(
-                        icon: Icons.info_outline,
-                        title: 'À propos',
-                        onTap: () {
-                          Navigator.pop(context);
-                        },
-                      ),
+                     
                     ],
                   ),
                 ),

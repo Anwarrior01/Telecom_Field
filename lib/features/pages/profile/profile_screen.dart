@@ -203,14 +203,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   setState(() => _isEditing = false);
                                   _loadProfile(); // Reset fields
                                 },
-                                child: const Text('Annuler'),
+                                child: const Text('Annuler',style : TextStyle(fontSize: 12),),
                               ),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: _saveProfile,
-                                child: const Text('Sauvegarder'),
+                                child: const Text('Sauvegarder',style : TextStyle(fontSize: 12),),
                               ),
                             ),
                           ],
