@@ -28,14 +28,21 @@ class PhotoCaptureScreen extends StatefulWidget {
 
 class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
     with TickerProviderStateMixin {
-  final List<OperationPhoto> _photos = [];
+  final Map<String, OperationPhoto?> _photos = {};
   final ImagePicker _picker = ImagePicker();
-  final TextEditingController _descriptionController = TextEditingController();
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
   late AnimationController _fabAnimationController;
   late Animation<double> _fabScaleAnimation;
   bool _isGeneratingPdf = false;
   bool _isAddingPhoto = false;
+  
+  // العناوين المطلوبة بنفس الترتيب
+  final List<String> _photoTitles = [
+    'Équipement installé',
+    'Test signal (photomètre)',
+    'Speed test (Test WIFI)',
+    'Etiquetage indoor',
+    'PV et Fiche d\'installation',
+  ];
 
   @override
   void initState() {
@@ -47,13 +54,18 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
     _fabScaleAnimation = Tween<double>(begin: 1.0, end: 0.9).animate(
       CurvedAnimation(parent: _fabAnimationController, curve: Curves.easeInOut),
     );
+    
+    // تهيئة المفاتيح للصور
+    for (String title in _photoTitles) {
+      _photos[title] = null;
+    }
+    
     _requestPermissions();
   }
 
   @override
   void dispose() {
     _fabAnimationController.dispose();
-    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -62,7 +74,7 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
     await permissions.request();
   }
 
-  Future<void> _takePicture() async {
+  Future<void> _takePicture(String photoTitle) async {
     if (_isAddingPhoto) return;
 
     setState(() {
@@ -78,7 +90,23 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
       );
 
       if (image != null && mounted) {
-        await _showDescriptionDialog(File(image.path));
+        final photo = OperationPhoto(
+          imageFile: File(image.path),
+          description: photoTitle,
+          timestamp: DateTime.now(),
+        );
+        
+        setState(() {
+          _photos[photoTitle] = photo;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Photo ajoutée: $photoTitle'),
+            backgroundColor: AppTheme.accent,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -93,119 +121,16 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
     }
   }
 
-  Future<void> _showDescriptionDialog(File imageFile) async {
-    _descriptionController.clear();
-    final result = await showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.secondaryDark,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Description de l\'image',
-          style: TextStyle(color: AppTheme.textPrimary),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: 200,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                      image: FileImage(imageFile),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _descriptionController,
-                maxLines: 3,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  hintText: 'Décrivez ce qui est visible sur l\'image...',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, null),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final description = _descriptionController.text.trim();
-              Navigator.pop(context, description.isEmpty ? 'Photo d\'intervention' : description);
-            },
-            child: const Text('Ajouter'),
-          ),
-        ],
-      ),
-    );
-
-    if (result != null && mounted) {
-      _addPhoto(imageFile, result);
-    }
-  }
-
-  void _addPhoto(File imageFile, String description) {
-    final photo = OperationPhoto(
-      imageFile: imageFile,
-      description: description,
-      timestamp: DateTime.now(),
-    );
-    
+  void _removePhoto(String photoTitle) {
     setState(() {
-      _photos.add(photo);
+      _photos[photoTitle] = null;
     });
-    
-    // Animate the addition
-    _listKey.currentState?.insertItem(_photos.length - 1);
-    
-    // Show success feedback
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Photo ajoutée: $description'),
-        backgroundColor: AppTheme.accent,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _removePhoto(int index) {
-    if (index >= _photos.length) return;
-
-    final removedPhoto = _photos[index];
-    setState(() {
-      _photos.removeAt(index);
-    });
-    
-    // Animate the removal
-    _listKey.currentState?.removeItem(
-      index,
-      (context, animation) => SlideTransition(
-        position: animation.drive(
-          Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero),
-        ),
-        child: FadeTransition(
-          opacity: animation,
-          child: _buildPhotoCard(removedPhoto, index, animation: animation),
-        ),
-      ),
-    );
   }
 
   Future<void> _generatePDF() async {
-    if (_photos.isEmpty) {
+    final takenPhotos = _photos.values.where((photo) => photo != null).toList();
+    
+    if (takenPhotos.isEmpty) {
       _showErrorSnackBar('Veuillez ajouter au moins une photo');
       return;
     }
@@ -219,11 +144,11 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
     _fabAnimationController.forward();
 
     try {
-      // Create operation
+      // Create operation with taken photos
       final operation = Operation(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         clientInfo: widget.clientInfo,
-        photos: List.from(_photos), // Create a copy to avoid modification during generation
+        photos: List<OperationPhoto>.from(takenPhotos),
         createdAt: DateTime.now(),
         technicianName: widget.technicianName,
         technicianDomain: widget.technicianDomain,
@@ -342,6 +267,10 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
     );
   }
 
+  int get _takenPhotosCount {
+    return _photos.values.where((photo) => photo != null).length;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -356,7 +285,7 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              '${_photos.length}',
+              '$_takenPhotosCount/${_photoTitles.length}',
               style: const TextStyle(
                 color: AppTheme.accent,
                 fontWeight: FontWeight.w600,
@@ -401,17 +330,147 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
 
           // Photos List
           Expanded(
-            child: _photos.isEmpty
-                ? _buildEmptyState()
-                : AnimatedList(
-                    key: _listKey,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    initialItemCount: _photos.length,
-                    itemBuilder: (context, index, animation) {
-                      if (index >= _photos.length) return Container();
-                      return _buildPhotoCard(_photos[index], index, animation: animation);
-                    },
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _photoTitles.length,
+              itemBuilder: (context, index) {
+                final photoTitle = _photoTitles[index];
+                final photo = _photos[photoTitle];
+                
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [AppTheme.accent, AppTheme.accentSecondary],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                photo != null ? Icons.check_circle : Icons.camera_alt,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    photoTitle,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    photo != null 
+                                        ? 'Photo prise à ${_formatTime(photo!.timestamp)}'
+                                        : 'Photo non prise',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: photo != null ? AppTheme.accent : AppTheme.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        
+                        const SizedBox(height: 12),
+                        
+                        // Photo preview or capture button
+                        if (photo != null) ...[
+                          Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    image: DecorationImage(
+                                      image: FileImage(photo.imageFile),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _takePicture(photoTitle),
+                                        icon: const Icon(Icons.camera_alt, size: 16),
+                                        label: const Text('Reprendre'),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: TextButton.icon(
+                                        onPressed: () => _removePhoto(photoTitle),
+                                        icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                                        label: const Text('Supprimer', style: TextStyle(color: Colors.red)),
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _isAddingPhoto ? null : () => _takePicture(photoTitle),
+                              icon: _isAddingPhoto 
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.camera_alt),
+                              label: Text(_isAddingPhoto ? 'Capture en cours...' : 'Prendre Photo'),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
+                );
+              },
+            ),
           ),
 
           // Bottom Actions
@@ -424,181 +483,43 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
               ),
             ),
             child: SafeArea(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _isAddingPhoto ? null : _takePicture,
-                          icon: _isAddingPhoto 
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.camera_alt),
-                          label: Text(_isAddingPhoto ? 'Capture...' : 'Prendre Photo'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ScaleTransition(
+                  scale: _fabScaleAnimation,
+                  child: ElevatedButton.icon(
+                    onPressed: _isGeneratingPdf ? null : _generatePDF,
+                    icon: _isGeneratingPdf
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
                             ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ScaleTransition(
-                      scale: _fabScaleAnimation,
-                      child: ElevatedButton.icon(
-                        onPressed: _isGeneratingPdf ? null : _generatePDF,
-                        icon: _isGeneratingPdf
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.picture_as_pdf),
-                        label: Text(
-                          _isGeneratingPdf ? 'Génération en cours...' : 'Générer PDF',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
+                          )
+                        : const Icon(Icons.picture_as_pdf),
+                    label: Text(
+                      _isGeneratingPdf ? 'جاري إنشاء PDF...' : 'إنشاء PDF',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: AppTheme.secondaryDark,
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: const Icon(
-              Icons.camera_alt,
-              size: 60,
-              color: AppTheme.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Aucune photo',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Commencez par prendre des photos\nde votre intervention',
-            style: TextStyle(
-              fontSize: 16,
-              color: AppTheme.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPhotoCard(OperationPhoto photo, int index, {Animation<double>? animation}) {
-    Widget card = Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: FileImage(photo.imageFile),
-                    fit: BoxFit.cover,
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    photo.description,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: AppTheme.textPrimary,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatTime(photo.timestamp),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              onPressed: () => _removePhoto(index),
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              tooltip: 'Supprimer la photo',
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
-
-    if (animation != null) {
-      return SlideTransition(
-        position: animation.drive(
-          Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero),
-        ),
-        child: FadeTransition(opacity: animation, child: card),
-      );
-    }
-
-    return card;
   }
 
   String _formatTime(DateTime time) {

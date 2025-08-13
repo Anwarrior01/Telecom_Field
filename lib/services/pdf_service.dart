@@ -393,31 +393,42 @@ class PDFService {
       child: pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text(
-            'REPORTAGE PHOTOS',
-            style: pw.TextStyle(
-              fontSize: 14,
-              fontWeight: pw.FontWeight.bold,
-              color: PdfColors.grey800,
-            ),
+          // Orange watermark header
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text(
+                'REPORTAGE PHOTOS',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.grey800,
+                ),
+              ),
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.orange,
+                  borderRadius: pw.BorderRadius.circular(4),
+                ),
+                child: pw.Text(
+                  'Orange',
+                  style: pw.TextStyle(
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.white,
+                  ),
+                ),
+              ),
+            ],
           ),
           pw.SizedBox(height: 12),
-          pw.Text(
-            'Équipement installé:',
-            style: pw.TextStyle(
-              fontSize: 12,
-              fontWeight: pw.FontWeight.bold,
-            ),
-          ),
-          pw.SizedBox(height: 8),
           
-          // Photos section
+          // Photos section with fixed titles
           ...List.generate(operation.photos.length, (index) {
             final photo = operation.photos[index];
             return _buildPhotoItem(photo, index + 1, index < imageBytes.length ? imageBytes[index] : null);
           }),
-          
-         
         ],
       ),
     );
@@ -430,10 +441,11 @@ class PDFService {
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.Text(
-            'Équipement installé /  Document  $photoNumber: ${operationPhoto.description}',
+            '${operationPhoto.description}:',
             style: pw.TextStyle(
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: pw.FontWeight.bold,
+              color: PdfColors.grey800,
             ),
           ),
           pw.SizedBox(height: 8),
@@ -443,20 +455,48 @@ class PDFService {
           ),
           pw.SizedBox(height: 8),
           
-          // Simple image display
-          imageBytes != null 
-            ? pw.Container(
-                width: double.infinity,
-                height: 200,
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.grey300),
+          // Image display with Orange watermark
+          pw.Container(
+            width: double.infinity,
+            height: 200,
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.grey300),
+            ),
+            child: pw.Stack(
+              children: [
+                // Main image
+                imageBytes != null 
+                  ? pw.Image(
+                      pw.MemoryImage(imageBytes),
+                      fit: pw.BoxFit.contain,
+                      width: double.infinity,
+                      height: 200,
+                    )
+                  : _buildPlaceholderBox('Image: ${operationPhoto.imageFile.path.split('/').last}'),
+                
+                // Orange watermark in corner
+                pw.Positioned(
+                  bottom: 10,
+                  right: 10,
+                  child: pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.orange,
+                      borderRadius: pw.BorderRadius.circular(4),
+                    ),
+                    child: pw.Text(
+                      'Orange',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.white,
+                      ),
+                    ),
+                  ),
                 ),
-                child: pw.Image(
-                  pw.MemoryImage(imageBytes),
-                  fit: pw.BoxFit.contain,
-                ),
-              )
-            : _buildPlaceholderBox('Image: ${operationPhoto.imageFile.path.split('/').last}'),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -465,34 +505,58 @@ class PDFService {
   pw.Widget _buildPlaceholderBox(String text) {
     return pw.Container(
       width: double.infinity,
-      height: 120,
+      height: 200,
       decoration: pw.BoxDecoration(
         color: PdfColors.grey100,
         border: pw.Border.all(color: PdfColors.grey300),
       ),
-      child: pw.Center(
-        child: pw.Column(
-          mainAxisAlignment: pw.MainAxisAlignment.center,
-          children: [
-            pw.Text(
-              '[IMAGE]',
-              style: pw.TextStyle(
-                color: PdfColors.grey500,
-                fontSize: 14,
-                fontWeight: pw.FontWeight.bold,
+      child: pw.Stack(
+        children: [
+          pw.Center(
+            child: pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Text(
+                  '[IMAGE]',
+                  style: pw.TextStyle(
+                    color: PdfColors.grey500,
+                    fontSize: 14,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  text,
+                  style: const pw.TextStyle(
+                    color: PdfColors.grey400,
+                    fontSize: 10,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          // Orange watermark even for placeholder
+          pw.Positioned(
+            bottom: 10,
+            right: 10,
+            child: pw.Container(
+              padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.orange,
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
+              child: pw.Text(
+                'Orange',
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.white,
+                ),
               ),
             ),
-            pw.SizedBox(height: 4),
-            pw.Text(
-              text,
-              style: const pw.TextStyle(
-                color: PdfColors.grey400,
-                fontSize: 10,
-              ),
-              textAlign: pw.TextAlign.center,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

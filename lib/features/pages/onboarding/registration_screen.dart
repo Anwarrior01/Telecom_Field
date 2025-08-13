@@ -18,6 +18,8 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  
+  bool _isRegistering = false; // Added to prevent multiple taps
 
   @override
   void initState() {
@@ -48,16 +50,36 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   }
 
   Future<void> _register() async {
+    if (_isRegistering) return; // Prevent multiple taps
+    
     if (_formKey.currentState!.validate()) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('technician_name', _nameController.text.trim());
-      await prefs.setString('technician_domain', _domainController.text.trim());
-      await prefs.setString('registration_date', DateTime.now().toIso8601String());
-      
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
+      setState(() {
+        _isRegistering = true;
+      });
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('technician_name', _nameController.text.trim());
+        await prefs.setString('technician_domain', _domainController.text.trim());
+        await prefs.setString('registration_date', DateTime.now().toIso8601String());
+        
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isRegistering = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erreur lors de l\'enregistrement: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
@@ -70,121 +92,143 @@ class _RegistrationScreenState extends State<RegistrationScreen>
           opacity: _fadeAnimation,
           child: SlideTransition(
             position: _slideAnimation,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: MediaQuery.of(context).size.height - 
-                            MediaQuery.of(context).padding.top - 
-                            MediaQuery.of(context).padding.bottom - 48,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Logo/Title
-                    Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [AppTheme.accent, AppTheme.accentSecondary],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.accent.withOpacity(0.3),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(), // Better scroll physics
+                  padding: const EdgeInsets.all(24.0),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Spacer(flex: 1),
+                          
+                          // Logo/Title
+                          Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [AppTheme.accent, AppTheme.accentSecondary],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(30),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppTheme.accent.withOpacity(0.3),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.engineering,
+                              size: 60,
+                              color: Colors.white,
+                            ),
                           ),
+                          const SizedBox(height: 32),
+                          const Text(
+                            'TelecomField',
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Identification du technicien',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 48),
+                          
+                          // Form
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Form(
+                                key: _formKey,
+                                child: Column(
+                                  children: [
+                                    TextFormField(
+                                      controller: _nameController,
+                                      enabled: !_isRegistering, // Disable when registering
+                                      decoration: const InputDecoration(
+                                        labelText: 'Nom complet',
+                                        prefixIcon: Icon(Icons.person, color: AppTheme.accent),
+                                        contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                                      ),
+                                      validator: (value) {
+                                        if (value == null || value.trim().isEmpty) {
+                                          return 'Veuillez saisir votre nom complet';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    const SizedBox(height: 20),
+                                    TextFormField(
+                                      controller: _domainController,
+                                      enabled: !_isRegistering, // Disable when registering
+                                      decoration: const InputDecoration(
+                                        labelText: 'Domaine de spécialité',
+                                        prefixIcon: Icon(Icons.work, color: AppTheme.accent),
+                                        contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                                      ),
+                                      validator: (value) {
+                                        if (value == null || value.trim().isEmpty) {
+                                          return 'Veuillez saisir votre domaine';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    const SizedBox(height: 32),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 50,
+                                      child: ElevatedButton(
+                                        onPressed: _isRegistering ? null : _register,
+                                        child: _isRegistering
+                                            ? const SizedBox(
+                                                width: 20,
+                                                height: 20,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  color: Colors.white,
+                                                ),
+                                              )
+                                            : const Text(
+                                                'Commencer',
+                                                style: TextStyle(
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          
+                          const Spacer(flex: 1),
+                          // Extra space for keyboard
+                          SizedBox(height: MediaQuery.of(context).viewInsets.bottom),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.engineering,
-                        size: 60,
-                        color: Colors.white,
-                      ),
                     ),
-                    const SizedBox(height: 32),
-                    const Text(
-                      'TelecomField',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Identification du technicien',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 48),
-                    
-                    // Form
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            children: [
-                              TextFormField(
-                                controller: _nameController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Nom complet',
-                                  prefixIcon: Icon(Icons.person, color: AppTheme.accent),
-                                  contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Veuillez saisir votre nom complet';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 20),
-                              TextFormField(
-                                controller: _domainController,
-                                decoration: const InputDecoration(
-                                  labelText: 'Domaine de spécialité',
-                                  prefixIcon: Icon(Icons.work, color: AppTheme.accent),
-                                  contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Veuillez saisir votre domaine';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 32),
-                              SizedBox(
-                                width: double.infinity,
-                                height: 50,
-                                child: ElevatedButton(
-                                  onPressed: _register,
-                                  child: const Text(
-                                    'Commencer',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ),

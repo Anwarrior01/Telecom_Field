@@ -23,6 +23,8 @@ class _ClientInfoScreenState extends State<ClientInfoScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  
+  bool _isProcessing = false; // Added to prevent multiple taps
 
   @override
   void initState() {
@@ -56,28 +58,44 @@ class _ClientInfoScreenState extends State<ClientInfoScreen>
   }
 
   Future<void> _proceedToPhotos() async {
+    if (_isProcessing) return; // Prevent multiple taps
+    
     if (_formKey.currentState!.validate()) {
-      final clientInfo = ClientInfo(
-        sip: _sipController.text.trim(),
-        workOrder: _workOrderController.text.trim(),
-        contactName: _contactNameController.text.trim(),
-        phoneNumber: _phoneController.text.trim(),
-        id: _idController.text.trim(),
-      );
+      setState(() {
+        _isProcessing = true;
+      });
 
-      final prefs = await SharedPreferences.getInstance();
-      final technicianName = prefs.getString('technician_name') ?? '';
-      final technicianDomain = prefs.getString('technician_domain') ?? '';
+      try {
+        final clientInfo = ClientInfo(
+          sip: _sipController.text.trim(),
+          workOrder: _workOrderController.text.trim(),
+          contactName: _contactNameController.text.trim(),
+          phoneNumber: _phoneController.text.trim(),
+          id: _idController.text.trim(),
+        );
 
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => PhotoCaptureScreen(
-            clientInfo: clientInfo,
-            technicianName: technicianName,
-            technicianDomain: technicianDomain,
-          ),
-        ),
-      );
+        final prefs = await SharedPreferences.getInstance();
+        final technicianName = prefs.getString('technician_name') ?? '';
+        final technicianDomain = prefs.getString('technician_domain') ?? '';
+
+        if (mounted) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => PhotoCaptureScreen(
+                clientInfo: clientInfo,
+                technicianName: technicianName,
+                technicianDomain: technicianDomain,
+              ),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+          });
+        }
+      }
     }
   }
 
@@ -88,165 +106,180 @@ class _ClientInfoScreenState extends State<ClientInfoScreen>
         title: const Text('Informations Client'),
         elevation: 0,
       ),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Header Card
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [AppTheme.accent, AppTheme.accentSecondary],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+      body: SafeArea( // Added SafeArea to prevent overflow
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(), // Better scroll physics
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Header Card
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [AppTheme.accent, AppTheme.accentSecondary],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(16),
                               ),
-                              borderRadius: BorderRadius.circular(16),
+                              child: const Icon(
+                                Icons.person_add,
+                                color: Colors.white,
+                                size: 30,
+                              ),
                             ),
-                            child: const Icon(
-                              Icons.person_add,
-                              color: Colors.white,
-                              size: 30,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Nouvelle Intervention',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.textPrimary,
+                            const SizedBox(width: 16),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Nouvelle Intervention',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.textPrimary,
+                                    ),
                                   ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  'Saisissez les données client',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: AppTheme.textSecondary,
+                                  SizedBox(height: 4),
+                                  Text(
+                                    'Saisissez les données client',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: AppTheme.textSecondary,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Form Fields
-                  _buildFormField(
-                    controller: _sipController,
-                    label: 'SIP',
-                    icon: Icons.numbers,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Veuillez saisir le SIP';
-                      }
-                      return null;
-                    },
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  _buildFormField(
-                    controller: _workOrderController,
-                    label: 'Work Order',
-                    icon: Icons.assignment,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Veuillez saisir le Work Order';
-                      }
-                      return null;
-                    },
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  _buildFormField(
-                    controller: _contactNameController,
-                    label: 'Nom du contact',
-                    icon: Icons.person,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Veuillez saisir le nom du contact';
-                      }
-                      return null;
-                    },
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  _buildFormField(
-                    controller: _phoneController,
-                    label: 'Numéro de téléphone',
-                    icon: Icons.phone,
-                    keyboardType: TextInputType.phone,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Veuillez saisir le numéro de téléphone';
-                      }
-                      return null;
-                    },
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  _buildFormField(
-                    controller: _idController,
-                    label: 'ID',
-                    icon: Icons.badge,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Veuillez saisir l\'ID';
-                      }
-                      return null;
-                    },
-                  ),
-                  
-                  const SizedBox(height: 32),
-                  
-                  // Next Button
-                  SizedBox(
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _proceedToPhotos,
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Suivant',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Icon(Icons.arrow_forward),
-                        ],
+                    
+                    const SizedBox(height: 24),
+                    
+                    // Form Fields
+                    _buildFormField(
+                      controller: _sipController,
+                      label: 'SIP',
+                      icon: Icons.numbers,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Veuillez saisir le SIP';
+                        }
+                        return null;
+                      },
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    _buildFormField(
+                      controller: _workOrderController,
+                      label: 'Work Order',
+                      icon: Icons.assignment,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Veuillez saisir le Work Order';
+                        }
+                        return null;
+                      },
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    _buildFormField(
+                      controller: _contactNameController,
+                      label: 'Nom du contact',
+                      icon: Icons.person,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Veuillez saisir le nom du contact';
+                        }
+                        return null;
+                      },
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    _buildFormField(
+                      controller: _phoneController,
+                      label: 'Numéro de téléphone',
+                      icon: Icons.phone,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Veuillez saisir le numéro de téléphone';
+                        }
+                        return null;
+                      },
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    _buildFormField(
+                      controller: _idController,
+                      label: 'ID',
+                      icon: Icons.badge,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Veuillez saisir l\'ID';
+                        }
+                        return null;
+                      },
+                    ),
+                    
+                    const SizedBox(height: 32),
+                    
+                    // Next Button with loading state
+                    SizedBox(
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _isProcessing ? null : _proceedToPhotos,
+                        child: _isProcessing
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Suivant',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Icon(Icons.arrow_forward),
+                                ],
+                              ),
                       ),
                     ),
-                  ),
-                ],
+                    
+                    // Extra bottom padding to prevent overflow
+                    SizedBox(height: MediaQuery.of(context).viewInsets.bottom),
+                  ],
+                ),
               ),
             ),
           ),
