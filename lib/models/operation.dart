@@ -7,7 +7,7 @@ class Operation {
   final List<OperationPhoto> photos;
   final DateTime createdAt;
   final String technicianName;
-  final String technicianDomain;
+  final String technicianNumber; // Changed from technicianDomain to technicianNumber
 
   Operation({
     required this.id,
@@ -15,7 +15,7 @@ class Operation {
     required this.photos,
     required this.createdAt,
     required this.technicianName,
-    required this.technicianDomain,
+    required this.technicianNumber, // Updated parameter
   });
 
   Map<String, dynamic> toJson() {
@@ -25,7 +25,7 @@ class Operation {
       'photos': photos.map((photo) => photo.toJson()).toList(),
       'createdAt': createdAt.millisecondsSinceEpoch,
       'technicianName': technicianName,
-      'technicianDomain': technicianDomain,
+      'technicianNumber': technicianNumber, // Updated field name
     };
   }
 
@@ -38,7 +38,7 @@ class Operation {
           .toList(),
       createdAt: DateTime.fromMillisecondsSinceEpoch(json['createdAt']),
       technicianName: json['technicianName'],
-      technicianDomain: json['technicianDomain'],
+      technicianNumber: json['technicianNumber'] ?? json['technicianDomain'] ?? '', // Backward compatibility
     );
   }
 }

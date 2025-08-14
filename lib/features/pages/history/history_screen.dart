@@ -324,7 +324,7 @@ class OperationDetailsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     _buildInfoRow('Nom:', operation.technicianName),
-                    _buildInfoRow('Domaine:', operation.technicianDomain),
+                    _buildInfoRow('Numero:', operation.technicianNumber),
                     _buildInfoRow('Date:', _formatDate(operation.createdAt)),
                   ],
                 ),

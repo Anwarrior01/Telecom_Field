@@ -14,7 +14,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _domainController = TextEditingController();
+  final _technicianNumberController = TextEditingController(); // Changed from domain to technician number
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -45,7 +45,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
   void dispose() {
     _animationController.dispose();
     _nameController.dispose();
-    _domainController.dispose();
+    _technicianNumberController.dispose(); // Updated variable name
     super.dispose();
   }
 
@@ -60,7 +60,7 @@ class _RegistrationScreenState extends State<RegistrationScreen>
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('technician_name', _nameController.text.trim());
-        await prefs.setString('technician_domain', _domainController.text.trim());
+        await prefs.setString('technician_number', _technicianNumberController.text.trim()); // Changed from domain to number
         await prefs.setString('registration_date', DateTime.now().toIso8601String());
         
         if (mounted) {
@@ -176,16 +176,22 @@ class _RegistrationScreenState extends State<RegistrationScreen>
                                     ),
                                     const SizedBox(height: 20),
                                     TextFormField(
-                                      controller: _domainController,
+                                      controller: _technicianNumberController, // Updated controller
                                       enabled: !_isRegistering, // Disable when registering
+                                      keyboardType: TextInputType.phone, // Added phone keyboard type
                                       decoration: const InputDecoration(
-                                        labelText: 'Domaine de spécialité',
-                                        prefixIcon: Icon(Icons.work, color: AppTheme.accent),
+                                        labelText: 'Numéro du technicien', // Updated label
+                                        prefixIcon: Icon(Icons.phone, color: AppTheme.accent), // Updated icon
                                         contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                                        hintText: 'Ex: 0770000204', // Added hint
                                       ),
                                       validator: (value) {
                                         if (value == null || value.trim().isEmpty) {
-                                          return 'Veuillez saisir votre domaine';
+                                          return 'Veuillez saisir votre numéro'; // Updated validation message
+                                        }
+                                        // Optional: Add phone number format validation
+                                        if (!RegExp(r'^[0-9+\-\s]+$').hasMatch(value.trim())) {
+                                          return 'Format de numéro invalide';
                                         }
                                         return null;
                                       },

@@ -17,7 +17,7 @@ class _CustomDrawerState extends State<CustomDrawer>
   late AnimationController _animationController;
   late Animation<double> _slideAnimation;
   String _technicianName = '';
-  String _technicianDomain = '';
+  String _technicianNumber = ''; // Changed from domain to number
 
   @override
   void initState() {
@@ -43,7 +43,7 @@ class _CustomDrawerState extends State<CustomDrawer>
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _technicianName = prefs.getString('technician_name') ?? '';
-      _technicianDomain = prefs.getString('technician_domain') ?? '';
+      _technicianNumber = prefs.getString('technician_number') ?? ''; // Changed from domain to number
     });
   }
 
@@ -96,7 +96,7 @@ class _CustomDrawerState extends State<CustomDrawer>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Technicien $_technicianDomain',
+                          'Tel: $_technicianNumber', // Updated to show phone number instead of domain
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.8),
                             fontSize: 14,

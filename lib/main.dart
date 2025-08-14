@@ -42,10 +42,10 @@ class _InitialScreenState extends State<InitialScreen> {
   Future<void> _checkRegistration() async {
     final prefs = await SharedPreferences.getInstance();
     final name = prefs.getString('technician_name');
-    final domain = prefs.getString('technician_domain');
+    final technicianNumber = prefs.getString('technician_number'); // Changed from domain to number
     
     setState(() {
-      _isRegistered = name != null && domain != null;
+      _isRegistered = name != null && technicianNumber != null; // Updated condition
       _isLoading = false;
     });
   }

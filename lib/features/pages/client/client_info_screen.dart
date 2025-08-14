@@ -76,7 +76,7 @@ class _ClientInfoScreenState extends State<ClientInfoScreen>
 
         final prefs = await SharedPreferences.getInstance();
         final technicianName = prefs.getString('technician_name') ?? '';
-        final technicianDomain = prefs.getString('technician_domain') ?? '';
+        final technicianNumber = prefs.getString('technician_number') ?? ''; // Changed from domain to number
 
         if (mounted) {
           Navigator.of(context).push(
@@ -84,7 +84,7 @@ class _ClientInfoScreenState extends State<ClientInfoScreen>
               builder: (_) => PhotoCaptureScreen(
                 clientInfo: clientInfo,
                 technicianName: technicianName,
-                technicianDomain: technicianDomain,
+                technicianNumber: technicianNumber, // Updated parameter
               ),
             ),
           );

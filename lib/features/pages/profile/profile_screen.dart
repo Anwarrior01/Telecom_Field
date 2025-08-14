@@ -13,7 +13,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _domainController = TextEditingController();
+  final _technicianNumberController = TextEditingController(); // Changed from domain to number
   bool _isEditing = false;
   int _totalOperations = 0;
   int _totalPdfs = 0;
@@ -29,7 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _domainController.dispose();
+    _technicianNumberController.dispose(); // Updated variable name
     super.dispose();
   }
 
@@ -37,7 +37,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _nameController.text = prefs.getString('technician_name') ?? '';
-      _domainController.text = prefs.getString('technician_domain') ?? '';
+      _technicianNumberController.text = prefs.getString('technician_number') ?? ''; // Changed from domain to number
     });
   }
 
@@ -86,7 +86,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (_formKey.currentState!.validate()) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('technician_name', _nameController.text.trim());
-      await prefs.setString('technician_domain', _domainController.text.trim());
+      await prefs.setString('technician_number', _technicianNumberController.text.trim()); // Changed from domain to number
       
       setState(() {
         _isEditing = false;
@@ -177,17 +177,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 20),
                       TextFormField(
-                        controller: _domainController,
+                        controller: _technicianNumberController, // Updated controller
                         enabled: _isEditing,
+                        keyboardType: TextInputType.phone, // Added phone keyboard type
                         decoration: InputDecoration(
-                          labelText: 'Domaine de spécialité',
-                          prefixIcon: const Icon(Icons.work, color: AppTheme.accent),
+                          labelText: 'Numéro du technicien', // Updated label
+                          prefixIcon: const Icon(Icons.phone, color: AppTheme.accent), // Updated icon
                           suffixIcon: _isEditing ? null : const Icon(Icons.lock, color: AppTheme.textSecondary),
                           contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                          hintText: 'Ex: 0770000204', // Added hint
                         ),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Veuillez saisir votre domaine';
+                            return 'Veuillez saisir votre numéro'; // Updated validation message
+                          }
+                          // Optional: Add phone number format validation
+                          if (!RegExp(r'^[0-9+\-\s]+$').hasMatch(value.trim())) {
+                            return 'Format de numéro invalide';
                           }
                           return null;
                         },

@@ -13,13 +13,13 @@ import 'package:telecom_app/services/pdf_service.dart';
 class PhotoCaptureScreen extends StatefulWidget {
   final ClientInfo clientInfo;
   final String technicianName;
-  final String technicianDomain;
+  final String technicianNumber; // Changed from technicianDomain to technicianNumber
 
   const PhotoCaptureScreen({
     super.key,
     required this.clientInfo,
     required this.technicianName,
-    required this.technicianDomain,
+    required this.technicianNumber, // Updated parameter
   });
 
   @override
@@ -151,7 +151,7 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
         photos: List<OperationPhoto>.from(takenPhotos),
         createdAt: DateTime.now(),
         technicianName: widget.technicianName,
-        technicianDomain: widget.technicianDomain,
+        technicianNumber: widget.technicianNumber, // Updated field
       );
 
       // Generate PDF
@@ -501,7 +501,7 @@ class _PhotoCaptureScreenState extends State<PhotoCaptureScreen>
                           )
                         : const Icon(Icons.picture_as_pdf),
                     label: Text(
-                      _isGeneratingPdf ? 'جاري إنشاء PDF...' : 'إنشاء PDF',
+                      _isGeneratingPdf ? 'Génération PDF...' : 'Générer PDF',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
